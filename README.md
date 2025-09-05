@@ -1,6 +1,9 @@
 # CobblemonSmartRespawn
 
 ### Intelligent Cobblemon Respawning with KubeJS
+## DEPENDANCIES:
+- KubeJS: tested on 2101.7.1
+- Rhino: tested on rhino-2101.2.7-build.77
 
 CobblemonSmartRespawn provides KubeJS scripts to intelligently respawn or remove Cobblemon entities, regardless of whether `"savePokemonToWorld": true` is enabled in your configuration. Unlike solutions like CobbleSweeper, this approach avoids using disruptive commands such as `@kill` which cause loot drops and death sounds.
 
