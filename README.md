@@ -1,40 +1,41 @@
 # CobblemonSmartRespawn
-### Quick KubeJS scripts that "intelligenty" respawn cobblemon.
 
-Specifically, I wanted to create something that would be able to respawn/destroy cobblemon regardless of the enabled option:
-  "savePokemonToWorld": true,
-And also avoid using an @kill command, like CobbleSweeper does (which is disruptive, drops loot, and makes death sounds).
+### Intelligent Cobblemon Respawning with KubeJS
 
-## I've added a few variables for anyone to adjust:
-// Calculate frequency of checks. Turn this up if you're experiencing tick-lag.
-// Do not change the "20 *" unless you know what you're doing--this is to calculate for the tick times
-// Default: 20 * 30;
-CHECK_FREQUENCY_TICKS 
+CobblemonSmartRespawn provides KubeJS scripts to intelligently respawn or remove Cobblemon entities, regardless of whether `"savePokemonToWorld": true` is enabled in your configuration. Unlike solutions like CobbleSweeper, this approach avoids using disruptive commands such as `@kill` which cause loot drops and death sounds.
 
-// Cobblemon psuedo-spawncap. Since there's no real "spawncap" for cobblemon, I've
-// calculated it via:
-// (("maximumSliceDistanceFromPlayer"-"minimumSliceDistanceFromPlayer")/16) * SPAWN_SENSITIVITY
-// where those variables are grabbed from the user's cobblemon/main.js config for spawn range.
-// A lower value will decrease the amount of Cobblemon needed within the user's maximumSliceDistanceFromPlayer
-// needed to trigger an entity-age check
-// Default: 4.0;
-SPAWN_SENSITIVITY
+## Customizable Variables
 
-// If the psuedo-spawncap is reached, check to see if there is an entity over the  minute age
-// defined by this variable. If they are older than this, then they will get culled,
-// assuming they are not on the PROTECTED_SPECIES list.
-// Do not change the "20 * 60 *", unless you know what you're doing
-// Default: 20 * 60 * 3;
-MAX_ALIVE_TICKS
+Several variables are available for user adjustment:
 
-// Amount of cobblemon able to be culled per-check.
-// It will be rare that you'll hit this number, unless your spawn ticks are VERY aggressive.
-// Default: 5;
-CULL_PER_CHECK
+### Check Frequency
 
-// Paths for Cobblemon config files
-COBBLE_CFG_PATHS
+Controls how often the script checks for Cobblemon entities. Increase this value if you experience server tick lag.  
+**Default:** `CHECK_FREQUENCY_TICKS = 20 * 30;` (do not change the `20 *` unless you're familiar with Minecraft tick timings)
 
-// Cobblemon to protect.
-// By default, I've included shinies, legendaries, owned, and cobblemon you're in a fight with.
-PROTECTED_SPECIES
+### Spawn Sensitivity
+
+Estimates a pseudo-spawn cap, since Cobblemon does not have a true spawn cap. The cap is calculated using:
+`( {maximumSliceDistanceFromPlayer} - {minimumSliceDistanceFromPlayer} / 16 ) * {SPAWN_SENSITIVITY}`
+where these values are fetched from your Cobblemon `main.js` config. Lower sensitivity reduces the number of Cobblemon near the player required to trigger entity age checks.  
+**Default:** `SPAWN_SENSITIVITY = 4.0`
+
+### Maximum Alive Ticks
+
+If the pseudo-spawn cap is reached, entities older than the specified tick limit are culled—unless they are part of the protected species list.  
+**Default:** `MAX_ALIVE_TICKS = 20 * 60 * 3;` (do not modify the `20 * 60 *` unless you understand Minecraft tick timings)
+
+### Cull Amount Per Check
+
+Sets the number of Cobblemon that may be removed each check. You’ll rarely reach this limit unless spawn checks are extremely frequent.  
+**Default:** `CULL_PER_CHECK = 5;`
+
+### Configuration Paths
+
+Specify the paths for your Cobblemon configuration files.  
+Example: `COBBLE_CFG_PATHS`
+
+### Protected Species
+
+Defines Cobblemon protected from culling. The default list includes shinies, legendaries, owned Cobblemon, and those currently in battle.  
+Example: `PROTECTED_SPECIES`
