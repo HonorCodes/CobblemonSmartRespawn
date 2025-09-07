@@ -1,143 +1,171 @@
-// Cobblemon Smart Respawn
-// NeoForge 1.21.1 + KubeJS (Rhino build.77)
+// --- Tunables ---------------------------------------------------------------
+const checkFrequencyTicks = 20 * 30;        // run every 30s
+const spawnSensitivity    = 3;               // multiplier for pseudo-cap
+const maxAliveTimeTicks   = 20 * 60 * 3;     // 3 minutes
+const cullsPerCheck       = 3;               // how many to remove per pass
+// ---------------------------------------------------------------------------
 
-// Many of the following options have *20
-// DO NOT change this value unless you know what you are doing
-var CHECK_FREQUENCY_TICKS = 20 * 30;      // Run every 30s; change the 30.
-var SPAWN_SENSITIVITY    = 4.0;           // Pseudo-cap = diameterInChunks * this; lower = MORE sensitive
-var MAX_ALIVE_TICKS      = 20 * 60 * 3;   // Cull only if alive > 3 minutes; change the 3.
-var CULL_PER_CHECK       = 5;             // Kill up to this many per sweep
+let _cobbleCfg = null;
 
-var COBBLE_CFG_PATHS = [
-  'config/cobblemon/main.json',
-  'config/cobblmon/main.json'
-];
+function readCobbleCfg() {
+  if (_cobbleCfg !== null) return _cobbleCfg;
 
-var PROTECTED_SPECIES = [
+  let obj = {};
+  try {
+    // Pull server config
+    obj = JsonIO.read('config/cobblemon/main.json') || {};
+  } catch (e) {
+    console.warn('[SmartRespawn] Could not read Cobblemon config, using defaults: ' + e);
+    obj = {};
+  }
+
+  // Safely pull distances; fall back to sensible defaults if missing
+  const spawning = obj.spawning || {};
+  const minDist = Number(spawning.minimumSliceDistanceFromPlayer ?? 12);
+  const maxDist = Number(spawning.maximumSliceDistanceFromPlayer ?? 96);
+
+  _cobbleCfg = { minDist, maxDist };
+  return _cobbleCfg;
+}
+
+const COBBLEMON_TYPE_ID = 'cobblemon:pokemon';
+
+// Species protected (legendaries, mythicals, ultra beasts, paradox, etc.)
+const PROTECTED_SPECIES = new Set([
+  // Kanto birds + mythicals
   'cobblemon:articuno','cobblemon:zapdos','cobblemon:moltres','cobblemon:mew','cobblemon:mewtwo',
-  'cobblemon:raikou','cobblemon:entei','cobblemon:suicune','cobblemon:lugia','cobblemon:hooh','cobblemon:celebi',
-  'cobblemon:regirock','cobblemon:regice','cobblemon:registeel','cobblemon:latias','cobblemon:latios',
-  'cobblemon:kyogre','cobblemon:groudon','cobblemon:rayquaza','cobblemon:jirachi','cobblemon:deoxys',
-  'cobblemon:uxie','cobblemon:mesprit','cobblemon:azelf','cobblemon:dialga','cobblemon:palkia','cobblemon:heatran',
-  'cobblemon:regigigas','cobblemon:giratina','cobblemon:cresselia','cobblemon:phione','cobblemon:manaphy',
-  'cobblemon:darkrai','cobblemon:shaymin','cobblemon:arceus',
-  'cobblemon:victini','cobblemon:cobalion','cobblemon:terrakion','cobblemon:virizion',
-  'cobblemon:tornadus','cobblemon:thundurus','cobblemon:landorus','cobblemon:reshiram','cobblemon:zekrom',
-  'cobblemon:kyurem','cobblemon:keldeo','cobblemon:meloetta',
-  'cobblemon:xerneas','cobblemon:yveltal','cobblemon:zygarde','cobblemon:diancie','cobblemon:hoopa','cobblemon:volcanion',
-  'cobblemon:tapukoko','cobblemon:tapulele','cobblemon:tapubulu','cobblemon:tapufini',
-  'cobblemon:typenull','cobblemon:silvally','cobblemon:cosmog','cobblemon:necrozma','cobblemon:magearna','cobblemon:marshadow',
+  // Johto beasts
+  'cobblemon:raikou','cobblemon:entei','cobblemon:suicune',
+  // Gen 2+3+4 legends/mythicals
+  'cobblemon:lugia','cobblemon:hooh','cobblemon:celebi','cobblemon:regirock','cobblemon:regice',
+  'cobblemon:registeel','cobblemon:latias','cobblemon:latios','cobblemon:kyogre','cobblemon:groudon',
+  'cobblemon:rayquaza','cobblemon:jirachi','cobblemon:deoxys','cobblemon:uxie','cobblemon:mesprit',
+  'cobblemon:azelf','cobblemon:dialga','cobblemon:palkia','cobblemon:heatran','cobblemon:regigigas',
+  'cobblemon:giratina','cobblemon:cresselia','cobblemon:phione','cobblemon:manaphy','cobblemon:darkrai',
+  'cobblemon:shaymin','cobblemon:arceus',
+  // Gen 5
+  'cobblemon:victini','cobblemon:cobalion','cobblemon:terrakion','cobblemon:virizion','cobblemon:tornadus',
+  'cobblemon:thundurus','cobblemon:landorus','cobblemon:reshiram','cobblemon:zekrom','cobblemon:kyurem',
+  'cobblemon:keldeo','cobblemon:meloetta',
+  // Gen 6
+  'cobblemon:xerneas','cobblemon:yveltal','cobblemon:zygarde','cobblemon:diancie','cobblemon:hoopa',
+  'cobblemon:volcanion',
+  // Gen 7 + UBs
+  'cobblemon:tapukoko','cobblemon:tapulele','cobblemon:tapubulu','cobblemon:tapufini','cobblemon:typenull',
+  'cobblemon:silvally','cobblemon:cosmog','cobblemon:necrozma','cobblemon:magearna','cobblemon:marshadow',
   'cobblemon:zeraora','cobblemon:meltan','cobblemon:melmetal',
-  'cobblemon:zacian','cobblemon:zamazenta','cobblemon:eternatus','cobblemon:kubfu','cobblemon:urshifu','cobblemon:zarude',
-  'cobblemon:regieleki','cobblemon:regidrago','cobblemon:glastrier','cobblemon:spectrier','cobblemon:calyrex',
+  'cobblemon:nihilego','cobblemon:buzzwole','cobblemon:pheromosa','cobblemon:xurkitree','cobblemon:celesteela',
+  'cobblemon:kartana','cobblemon:guzzlord','cobblemon:poipole','cobblemon:naganadel','cobblemon:stakataka',
+  'cobblemon:blacephalon',
+  // Gen 8
+  'cobblemon:zacian','cobblemon:zamazenta','cobblemon:eternatus','cobblemon:kubfu','cobblemon:urshifu',
+  'cobblemon:zarude','cobblemon:regieleki','cobblemon:regidrago','cobblemon:glastrier','cobblemon:spectrier',
+  'cobblemon:calyrex',
+  // Gen 9 + paradox
   'cobblemon:enamorus','cobblemon:wochien','cobblemon:chienpao','cobblemon:tinglu','cobblemon:chiyu',
   'cobblemon:koraidon','cobblemon:miraidon','cobblemon:okidogi','cobblemon:munkidori','cobblemon:fezandipiti',
   'cobblemon:ogerpon','cobblemon:terapagos','cobblemon:pecharunt',
-  'cobblemon:nihilego','cobblemon:buzzwole','cobblemon:pheromosa','cobblemon:xurkitree','cobblemon:celesteela',
-  'cobblemon:kartana','cobblemon:guzzlord','cobblemon:poipole','cobblemon:naganadel','cobblemon:stakataka','cobblemon:blacephalon',
   'cobblemon:greattusk','cobblemon:screamtail','cobblemon:brutebonnet','cobblemon:fluttermane','cobblemon:slitherwing',
-  'cobblemon:sandyshocks','cobblemon:irontreads','cobblemon:ironbundle','cobblemon:ironhands','cobblemon:ironjugulis',
-  'cobblemon:ironmoth','cobblemon:ironthorns','cobblemon:roaringmoon','cobblemon:ironvaliant','cobblemon:walkingwake',
-  'cobblemon:ironleaves','cobblemon:gougingfire','cobblemon:ragingbolt','cobblemon:ironboulder','cobblemon:ironcrown'
-];
+  'cobblemon:sandyshocks','cobblemon:irontreads','cobblemon:ironbundle','cobblemon:ironhands',
+  'cobblemon:ironjugulis','cobblemon:ironmoth','cobblemon:ironthorns','cobblemon:roaringmoon','cobblemon:ironvaliant',
+  'cobblemon:walkingwake','cobblemon:ironleaves','cobblemon:gougingfire','cobblemon:ragingbolt',
+  'cobblemon:ironboulder','cobblemon:ironcrown'
+]);
 
-function readCobbleDistances() {
-  var maxD = 96.0, minD = 12.0;
-  for (var i = 0; i < COBBLE_CFG_PATHS.length; i++) {
-    try {
-      var cfg = JsonIO.read(COBBLE_CFG_PATHS[i]);
-      if (cfg) {
-        if (typeof cfg.maximumSliceDistanceFromPlayer === 'number') maxD = cfg.maximumSliceDistanceFromPlayer;
-        if (typeof cfg.minimumSliceDistanceFromPlayer === 'number') minD = cfg.minimumSliceDistanceFromPlayer;
-        break;
-      }
-    } catch (e) {}
-  }
-  return { max: maxD, min: minD };
+function isCobblemon(entity) {
+  return entity && entity.type === COBBLEMON_TYPE_ID;
 }
 
-function isProtectedPokemon(e) {
-  var nbt = e.fullNBT;
-  if (nbt && nbt.CustomName != null) return true;
-  if (nbt && (nbt.NoAI === 1 || nbt.NoAI === true)) return true;
+function isProtected(entity) {
+  if (!entity) return false;
 
-  if (!nbt || !nbt.Pokemon) return true;
-  var poke = nbt.Pokemon;
+  // Never touch named Pokémon
+  if (entity.customName) return true;
 
-  if (poke.PokemonOriginalTrainerType && poke.PokemonOriginalTrainerType !== 'NONE') return true;
-  if (poke.Shiny === 1 || poke.Shiny === true) return true;
-  if (poke.Species && PROTECTED_SPECIES.indexOf(String(poke.Species)) >= 0) return true;
+  // Read Cobblemon NBT safely
+  const nbt = entity.fullNBT;
+  if (!nbt || !nbt.contains('Pokemon')) return false;
+
+  const p = nbt.get('Pokemon');
+
+  // Tamed/owned check
+  if (p.contains('PokemonOriginalTrainerType') && p.getString('PokemonOriginalTrainerType') !== 'NONE') {
+    return true;
+  }
+
+  // Shiny check
+  if (p.contains('Shiny') && p.getBoolean('Shiny')) return true;
+
+  // Boss flag (some builds use 'IsBoss', some 'Boss')
+  if ((p.contains('IsBoss') && p.getBoolean('IsBoss')) || (p.contains('Boss') && p.getBoolean('Boss'))) {
+    return true;
+  }
+
+  // Legendary / UB / Paradox species whitelist
+  if (p.contains('Species') && PROTECTED_SPECIES.has(p.getString('Species'))) {
+    return true;
+  }
 
   return false;
 }
 
-var CSR_TICK = 0;
+// Distance^2
+function dist2(a, b) {
+  const dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
+  return dx * dx + dy * dy + dz * dz;
+}
 
-EntityEvents.spawned(function (event) {
-  var ent = event.entity;
-  if (!ent || String(ent.type) !== 'cobblemon:pokemon') return;
-  if (ent.persistentData.csrFirstSeen == null) {
-    ent.persistentData.csrFirstSeen = CSR_TICK;
-  }
-});
+let tickCounter = 0;
 
-ServerEvents.tick(function (event) {
-  CSR_TICK++;
-  if (CSR_TICK % CHECK_FREQUENCY_TICKS !== 0) return;
+ServerEvents.tick(event => {
+  const level = event.server.overworld(); // run once per tick using overworld as the driver
+  if (!level) return;
 
-  var s = event.server;
-  var distCfg = readCobbleDistances();
-  var maxDist = distCfg.max;
-  var minDist = distCfg.min;
+  tickCounter++;
+  if (tickCounter % checkFrequencyTicks !== 0) return;
 
-  var diameterChunks = (maxDist - minDist) / 16.0;
-  var pseudoCap = Math.floor(diameterChunks * SPAWN_SENSITIVITY);
-  if (pseudoCap < 1) pseudoCap = 1;
+  const cfg = readCobbleCfg();
+  const minDist = (cfg?.spawning?.minimumSliceDistanceFromPlayer ?? 12) * 1.0;
+  const maxDist = (cfg?.spawning?.maximumSliceDistanceFromPlayer ?? 96) * 1.0;
 
-  var players = s.getEntities('@a');
-  for (var pi = 0; pi < players.length; pi++) {
-    var p = players[pi];
+  // Convert to squared distances for comparisons
+  const maxDist2 = maxDist * maxDist;
 
-    var selector = '@e[type=cobblemon:pokemon,x=' + Math.floor(p.x) +
-                   ',y=' + Math.floor(p.y) + ',z=' + Math.floor(p.z) +
-                   ',distance=..' + maxDist + ']';
+  // Chunk window diameter in chunks
+  const diameterChunks = Math.max(1, Math.floor((maxDist - minDist) / 16));
+  const pseudoCap = diameterChunks * spawnSensitivity;
 
-    var mons = s.getEntities(selector);
+  const players = level.players;
+  if (!players || players.length === 0) return;
 
-    for (var i = 0; i < mons.length; i++) {
-      var e = mons[i];
-      if (e.persistentData.csrFirstSeen == null) e.persistentData.csrFirstSeen = CSR_TICK;
-    }
+  // Process around each player independently
+  for (const player of players) {
+    const pPos = player.position();
 
-    if (mons.length > pseudoCap) {
-      var candidates = [];
-      for (var i = 0; i < mons.length; i++) {
-        var e = mons[i];
-        if (isProtectedPokemon(e)) continue;
-        var seen = e.persistentData.csrFirstSeen || CSR_TICK;
-        var age = CSR_TICK - seen;
-        if (age >= MAX_ALIVE_TICKS) candidates.push({ ent: e, age: age });
+    // Gather nearby Cobblemon
+    const nearby = level.getEntities().filter(e => {
+      if (!isCobblemon(e)) return false;
+      // distance filter
+      return dist2(e.position(), pPos) <= maxDist2;
+    });
+
+    // Over cap? decide how many to cull this pass
+    if (nearby.length > pseudoCap) {
+      // Filter candidates: not protected & old enough
+      const now = nearby
+        .filter(e => !isProtected(e) && (e.age ?? 0) >= maxAliveTimeTicks)
+        .sort((a, b) => (b.age ?? 0) - (a.age ?? 0)); // oldest first
+
+      const toCull = Math.min(cullsPerCheck, now.length);
+      for (let i = 0; i < toCull; i++) {
+        const ent = now[i];
+        // prefer discard() if available (no drops/XP), fallback to kill()
+        if (typeof ent.discard === 'function') ent.discard();
+        else if (typeof ent.kill === 'function') ent.kill();
       }
 
-      if (candidates.length > 0) {
-        candidates.sort(function (a, b) { return b.age - a.age; });
-
-        var needed = mons.length - pseudoCap;
-        var toKill = CULL_PER_CHECK;
-        if (toKill > needed) toKill = needed;
-        if (toKill > candidates.length) toKill = candidates.length;
-
-        for (var i = 0; i < toKill; i++) {
-          var target = candidates[i].ent;
-          if (isProtectedPokemon(target)) continue;
-          target.kill();
-          var onbt = target.fullNBT;
-          var species = (onbt && onbt.Pokemon && onbt.Pokemon.Species) ? String(onbt.Pokemon.Species) : '(unknown)';
-          var dim = String(target.level.dimension);
-          var pos = Math.floor(target.x) + ' ' + Math.floor(target.y) + ' ' + Math.floor(target.z);
-          console.info('[CSR] Culled ' + species + ' at ' + pos + ' in ' + dim +
-                       ' (count ' + mons.length + ' > cap ' + pseudoCap + ', age ' + candidates[i].age + ').');
-        }
+      if (toCull > 0) {
+        console.log(`[SmartRespawn] ${player.name.string}: culled ${toCull} Cobblemon (had ${nearby.length}, cap ${pseudoCap}).`);
       }
     }
   }
