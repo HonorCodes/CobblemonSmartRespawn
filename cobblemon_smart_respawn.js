@@ -1,7 +1,7 @@
 // --- Tunables ---------------------------------------------------------------
-const checkFrequencyTicks = 20 * 30;        // run every 30s
+const checkFrequencyTicks = 20 * 30;        // run every 30s; do not change "20 *"
 const spawnSensitivity    = 3;               // multiplier for pseudo-cap
-const maxAliveTimeTicks   = 20 * 60 * 3;     // 3 minutes
+const maxAliveTimeTicks   = 20 * 60 * 3;     // 3 minutes; do not change "20 * 60"
 const cullsPerCheck       = 3;               // how many to remove per pass
 // ---------------------------------------------------------------------------
 
@@ -12,7 +12,8 @@ function readCobbleCfg() {
 
   let obj = {};
   try {
-    // Pull server config
+    // Path is relative to the game/server directory:
+    // <root>/config/cobblemon/main.json
     obj = JsonIO.read('config/cobblemon/main.json') || {};
   } catch (e) {
     console.warn('[SmartRespawn] Could not read Cobblemon config, using defaults: ' + e);
@@ -88,7 +89,7 @@ function isProtected(entity) {
 
   const p = nbt.get('Pokemon');
 
-  // Tamed/owned check
+  // Tamed/owned check (original trainer present)
   if (p.contains('PokemonOriginalTrainerType') && p.getString('PokemonOriginalTrainerType') !== 'NONE') {
     return true;
   }
@@ -109,7 +110,7 @@ function isProtected(entity) {
   return false;
 }
 
-// Distance^2
+// Distance^2 helper (avoid sqrt)
 function dist2(a, b) {
   const dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
   return dx * dx + dy * dy + dz * dz;
