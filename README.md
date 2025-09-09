@@ -1,4 +1,7 @@
-# CobblemonSmartRespawn
+# Reverie Serverpack Scripts for NeoForge 1.21.1
+The scripts in this repository are deployed in Reverie's cobblemon serverpack for NeoForge version 1.21.1 of Minecraft. They seek to nerf overpowered recipes and enable persistent Cobblemon, without sacrificing spawns, in an immersive way.
+
+## CobblemonSmartRespawn
 
 ### Intelligent Cobblemon Respawning with KubeJS
 
