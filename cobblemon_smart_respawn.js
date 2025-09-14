@@ -5,6 +5,10 @@ const maxAliveTimeTicks   = 20 * 60 * 3;     // 3 minutes; do not change "20 * 6
 const cullsPerCheck       = 3;               // how many to remove per pass
 // ---------------------------------------------------------------------------
 
+// NOTE:
+// Message user "Honor" on the offical Cobblemon Discord
+// if there are any issues with this script.
+
 let _cobbleCfg = null;
 
 function readCobbleCfg() {
@@ -171,4 +175,5 @@ ServerEvents.tick(event => {
     }
   }
 });
+
 
