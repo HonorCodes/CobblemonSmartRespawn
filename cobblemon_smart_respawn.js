@@ -1,22 +1,21 @@
 // --- ONLY CHANGE THESE VALUES! ---------------------------------------------
-const checkFrequencyTicks = 20 * 30;        // run every 30s; do not change "20 *"
-const spawnSensitivity    = 3;               // multiplier for pseudo-cap
-const maxAliveTimeTicks   = 20 * 60 * 3;     // 3 minutes; do not change "20 * 60"
-const cullsPerCheck       = 3;               // how many to remove per pass
+var checkFrequencyTicks = 20 * 30;        // run every 30s; do not change "20 *"
+var spawnSensitivity    = 3;               // multiplier for pseudo-cap
+var maxAliveTimeTicks   = 20 * 60 * 3;     // 3 minutes; do not change "20 * 60"
+var cullsPerCheck       = 3;               // how many to remove per pass
 // ---------------------------------------------------------------------------
 
 // NOTE:
 // Message user "Honor" on the offical Cobblemon Discord
 // if there are any issues with this script.
 
-let _cobbleCfg = null;
+var _cobbleCfg = null;
 
 function readCobbleCfg() {
   if (_cobbleCfg !== null) return _cobbleCfg;
 
-  let obj = {};
+  var obj = {};
   try {
-    // Path is relative to the game/server directory:
     // <root>/config/cobblemon/main.json
     obj = JsonIO.read('config/cobblemon/main.json') || {};
   } catch (e) {
@@ -24,19 +23,18 @@ function readCobbleCfg() {
     obj = {};
   }
 
-  // Safely pull distances; fall back to sensible defaults if missing
-  const spawning = obj.spawning || {};
-  const minDist = Number(spawning.minimumSliceDistanceFromPlayer ?? 12);
-  const maxDist = Number(spawning.maximumSliceDistanceFromPlayer ?? 96);
+  var spawning = obj.spawning || {};
+  var minDist = Number(spawning.minimumSliceDistanceFromPlayer != null ? spawning.minimumSliceDistanceFromPlayer : 12);
+  var maxDist = Number(spawning.maximumSliceDistanceFromPlayer != null ? spawning.maximumSliceDistanceFromPlayer : 96);
 
-  _cobbleCfg = { minDist, maxDist };
+  _cobbleCfg = { minDist: minDist, maxDist: maxDist };
   return _cobbleCfg;
 }
 
-const COBBLEMON_TYPE_ID = 'cobblemon:pokemon';
+var COBBLEMON_TYPE_ID = 'cobblemon:pokemon';
 
 // Species protected (legendaries, mythicals, ultra beasts, paradox, etc.)
-const PROTECTED_SPECIES = new Set([
+var PROTECTED_SPECIES = [
   // Kanto birds + mythicals
   'cobblemon:articuno','cobblemon:zapdos','cobblemon:moltres','cobblemon:mew','cobblemon:mewtwo',
   // Johto beasts
@@ -75,7 +73,7 @@ const PROTECTED_SPECIES = new Set([
   'cobblemon:ironjugulis','cobblemon:ironmoth','cobblemon:ironthorns','cobblemon:roaringmoon','cobblemon:ironvaliant',
   'cobblemon:walkingwake','cobblemon:ironleaves','cobblemon:gougingfire','cobblemon:ragingbolt',
   'cobblemon:ironboulder','cobblemon:ironcrown'
-]);
+];
 
 function isCobblemon(entity) {
   return entity && entity.type === COBBLEMON_TYPE_ID;
@@ -88,10 +86,10 @@ function isProtected(entity) {
   if (entity.customName) return true;
 
   // Read Cobblemon NBT safely
-  const nbt = entity.fullNBT;
+  var nbt = entity.fullNBT;
   if (!nbt || !nbt.contains('Pokemon')) return false;
 
-  const p = nbt.get('Pokemon');
+  var p = nbt.get('Pokemon');
 
   // Tamed/owned check (original trainer present)
   if (p.contains('PokemonOriginalTrainerType') && p.getString('PokemonOriginalTrainerType') !== 'NONE') {
@@ -101,13 +99,13 @@ function isProtected(entity) {
   // Shiny check
   if (p.contains('Shiny') && p.getBoolean('Shiny')) return true;
 
-  // Boss flag (some builds use 'IsBoss', some 'Boss')
+  // Boss flag
   if ((p.contains('IsBoss') && p.getBoolean('IsBoss')) || (p.contains('Boss') && p.getBoolean('Boss'))) {
     return true;
   }
 
   // Legendary / UB / Paradox species whitelist
-  if (p.contains('Species') && PROTECTED_SPECIES.has(p.getString('Species'))) {
+  if (p.contains('Species') && PROTECTED_SPECIES.indexOf(p.getString('Species')) !== -1) {
     return true;
   }
 
@@ -116,64 +114,74 @@ function isProtected(entity) {
 
 // Distance^2 helper (avoid sqrt)
 function dist2(a, b) {
-  const dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
+  var dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
   return dx * dx + dy * dy + dz * dz;
 }
 
-let tickCounter = 0;
+var tickCounter = 0;
 
-ServerEvents.tick(event => {
-  const level = event.server.overworld(); // run once per tick using overworld as the driver
+ServerEvents.tick(function (event) {
+  var level = event.server.overworld(); // run once per tick using overworld as the driver
   if (!level) return;
 
   tickCounter++;
   if (tickCounter % checkFrequencyTicks !== 0) return;
 
-  const cfg = readCobbleCfg();
-  const minDist = (cfg?.spawning?.minimumSliceDistanceFromPlayer ?? 12) * 1.0;
-  const maxDist = (cfg?.spawning?.maximumSliceDistanceFromPlayer ?? 96) * 1.0;
+  var cfg = readCobbleCfg();
+  var minDist = cfg.minDist;
+  var maxDist = cfg.maxDist;
 
   // Convert to squared distances for comparisons
-  const maxDist2 = maxDist * maxDist;
+  var maxDist2 = maxDist * maxDist;
 
   // Chunk window diameter in chunks
-  const diameterChunks = Math.max(1, Math.floor((maxDist - minDist) / 16));
-  const pseudoCap = diameterChunks * spawnSensitivity;
+  var diameterChunks = Math.max(1, Math.floor((maxDist - minDist) / 16));
+  var pseudoCap = diameterChunks * spawnSensitivity;
 
-  const players = level.players;
+  var players = level.players;
   if (!players || players.length === 0) return;
 
   // Process around each player independently
-  for (const player of players) {
-    const pPos = player.position();
+  for (var i = 0; i < players.length; i++) {
+    var player = players[i];
+    var pPos = player.position();
 
     // Gather nearby Cobblemon
-    const nearby = level.getEntities().filter(e => {
-      if (!isCobblemon(e)) return false;
-      // distance filter
-      return dist2(e.position(), pPos) <= maxDist2;
-    });
+    var all = level.getEntities();
+    var nearby = [];
+    for (var j = 0; j < all.length; j++) {
+      var e = all[j];
+      if (!isCobblemon(e)) continue;
+      if (dist2(e.position(), pPos) <= maxDist2) nearby.push(e);
+    }
 
     // Over cap? decide how many to cull this pass
     if (nearby.length > pseudoCap) {
-      // Filter entities: not protected & old enough
-      const now = nearby
-        .filter(e => !isProtected(e) && (e.age ?? 0) >= maxAliveTimeTicks)
-        .sort((a, b) => (b.age ?? 0) - (a.age ?? 0)); // oldest first
+      // Filter candidates: not protected & old enough
+      var cand = [];
+      for (var k = 0; k < nearby.length; k++) {
+        var ent = nearby[k];
+        var age = ent.age != null ? ent.age : 0;
+        if (!isProtected(ent) && age >= maxAliveTimeTicks) cand.push(ent);
+      }
 
-      const toCull = Math.min(cullsPerCheck, now.length);
-      for (let i = 0; i < toCull; i++) {
-        const ent = now[i];
-        // prefer discard() if available (no drops/XP), fallback to kill()
-        if (typeof ent.discard === 'function') ent.discard();
-        else if (typeof ent.kill === 'function') ent.kill();
+      // Oldest first
+      cand.sort(function (a, b) { return (b.age || 0) - (a.age || 0); });
+
+      var toCull = Math.min(cullsPerCheck, cand.length);
+      for (var m = 0; m < toCull; m++) {
+        var ent2 = cand[m];
+        if (typeof ent2.discard === 'function') ent2.discard();
+        else if (typeof ent2.kill === 'function') ent2.kill();
       }
 
       if (toCull > 0) {
-        console.log(`[SmartRespawn] ${player.name.string}: culled ${toCull} Cobblemon (had ${nearby.length}, cap ${pseudoCap}).`);
+        console.log('[SmartRespawn] ' + player.name.string + ': culled ' + toCull +
+          ' Cobblemon (had ' + nearby.length + ', cap ' + pseudoCap + ').');
       }
     }
   }
 });
+
 
 
