@@ -1,4 +1,4 @@
-// --- Tunables ---------------------------------------------------------------
+// --- ONLY CHANGE THESE VALUES! ---------------------------------------------
 const checkFrequencyTicks = 20 * 30;        // run every 30s; do not change "20 *"
 const spawnSensitivity    = 3;               // multiplier for pseudo-cap
 const maxAliveTimeTicks   = 20 * 60 * 3;     // 3 minutes; do not change "20 * 60"
@@ -152,7 +152,7 @@ ServerEvents.tick(event => {
 
     // Over cap? decide how many to cull this pass
     if (nearby.length > pseudoCap) {
-      // Filter candidates: not protected & old enough
+      // Filter entities: not protected & old enough
       const now = nearby
         .filter(e => !isProtected(e) && (e.age ?? 0) >= maxAliveTimeTicks)
         .sort((a, b) => (b.age ?? 0) - (a.age ?? 0)); // oldest first
@@ -171,3 +171,4 @@ ServerEvents.tick(event => {
     }
   }
 });
+
