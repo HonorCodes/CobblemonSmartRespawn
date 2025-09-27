@@ -1,10 +1,9 @@
 // kubejs/server_scripts/crd_chunk_placer_pad.js
-// ES5-safe. Places Cobblemon Raid Dens on chunk load using a flat 3x3 ground pad with 3x3xH clear air above.
+// ES5-safe. Places Cobblemon Raid Dens on chunk load using a flat 3x3 ground pad.
 
 // ---------- CONFIG ----------
 var CONFIG = {
   "minecraft:the_nether": {
-    // allowed ground blocks for the 3x3 pad
     groundBlocks: [
       "regions_unexplored:cobalt_nylium",
       "regions_unexplored:mycotoxic_moss",
@@ -14,34 +13,123 @@ var CONFIG = {
       "minecraft:crimson_nylium","minecraft:warped_nylium",
       "minecraft:magma_block"
     ],
-    chancePerChunk: 0.01,    // roll once per newly seen chunk
-    triesPerChunk: 200,      // random samples inside the chunk
-    clearHeight: 12,         // clear 3x3xH air above the pad
-    requireFlat3x3: true,    // all 9 pad blocks must be in groundBlocks on same Y
-    argMode: "enum",         // "enum" -> TIER_* ; "numeric" -> "tier N"
+    chancePerChunk: 0.05,
+    triesPerChunk: 200,
+    clearHeight: 12,
+    requireFlat3x3: true,
+    argMode: "enum",
     weights: [0, 0, 15, 30, 40, 10, 5],
-    retryIfNoSpot: true      // if no pad found, try again next tick for this chunk
+    retryIfNoSpot: true,
+    playSound: "minecraft:entity.experience_orb.pickup"
+    // yMin/yMax can be added if needed
+  },
+
+  // Aether (Deep Aether surface blocks included here)
+  "aether:the_aether": {
+    groundBlocks: [
+      // Aether
+      "aether:grass_block","aether:aether_grass_block",
+      "aether:aether_dirt","aether:holystone",
+      "aether:quicksoil","aether:icestone",
+      "aether:skyroot_log",
+      // Deep Aether
+      "deep_aether:deep_aether_grass_block","deep_aether:deep_aether_dirt",
+      "deep_aether:abyssal_holystone","deep_aether:corrupted_quicksoil",
+      "deep_aether:echoed_icestone"
+    ],
+    chancePerChunk: 0.05,
+    triesPerChunk: 220,
+    clearHeight: 12,
+    requireFlat3x3: true,
+    argMode: "enum",
+    weights: [10, 20, 30, 20, 15, 4, 1],
+    retryIfNoSpot: true,
+    playSound: "minecraft:entity.experience_orb.pickup",
+    yMin: 16,
+    yMax: 255
+  },
+
+  // The End
+  "minecraft:the_end": {
+    groundBlocks: [
+      "minecraft:end_stone",
+      "minecraft:obsidian",
+      "minecraft:end_stone_bricks",
+      "minecraft:purpur_block",
+      // Nullscape extras
+      "minecraft:blackstone"
+    ],
+    chancePerChunk: 0.05,
+    triesPerChunk: 220,
+    clearHeight: 12,
+    requireFlat3x3: true,
+    argMode: "enum",
+    // from your end weighting example
+    weights: [0, 0, 5, 20, 30, 25, 20],
+    retryIfNoSpot: true,
+    playSound: "minecraft:entity.experience_orb.pickup",
+    yMin: 0,
+    yMax: 255
+  },
+
+  // Deeper & Darker — Otherside
+  "deeperdarker:otherside": {
+    groundBlocks: [
+      "minecraft:sculk","deeperdarker:gloomy_sculk",
+      "deeperdarker:sculk_stone","deeperdarker:gloomslate",
+      "deeperdarker:skulk_grime","deeperdarker:scarc",
+      "deeperdarker:aqua_soil","deeperdarker:skaric_stone"
+    ],
+    chancePerChunk: 0.05,
+    triesPerChunk: 200,
+    clearHeight: 12,
+    requireFlat3x3: true,
+    argMode: "enum",
+    weights: [0, 0, 10, 20, 35, 25, 10],
+    retryIfNoSpot: true,
+    playSound: "minecraft:entity.experience_orb.pickup"
+  },
+
+  // Allthemodium — The Other
+  "allthemodium:the_other": {
+    groundBlocks: [
+      "minecraft:netherrack",
+      "minecraft:soul_sand","minecraft:soul_soil",
+      "minecraft:magma_block","minecraft:gravel",
+      "minecraft:basalt","minecraft:blackstone",
+      "minecraft:crimson_nylium","minecraft:warped_nylium",
+      "minecraft:glowstone","minecraft:nether_quartz_ore",
+      "allthemodium:vibranium_ore"
+    ],
+    chancePerChunk: 0.05,
+    triesPerChunk: 200,
+    clearHeight: 12,
+    requireFlat3x3: true,
+    argMode: "enum",
+    // nether-like weighting; adjust as needed
+    weights: [0, 0, 15, 30, 40, 10, 5],
+    retryIfNoSpot: true,
+    playSound: "minecraft:entity.experience_orb.pickup"
   }
 };
+
 var DEFAULT_WEIGHTS = [20, 30, 32, 10, 5, 2, 1];
-var TICK_INTERVAL = 5;       // ~0.25 s
-var DEBUG = true;
+var TICK_INTERVAL = 5;             // ~0.25 s
+var DEBUG_VERBOSE = true;         // debug spam on/off (announce always on)
 // ---------- END CONFIG ----------
 
 // --- helpers ---
 function round3(n){ return Math.floor(n*1000)/1000; }
+function esc(s){ return String(s).replace(/\\/g,"\\\\").replace(/"/g,'\\"'); }
 function dbg(server,color,msg){
-  if (!DEBUG) return;
-  var s = String(msg).replace(/"/g,'\\"');
-  server.runCommand('tellraw @a {"text":"'+s+'","color":"'+color+'"}');
+  if (!DEBUG_VERBOSE) return;
+  server.runCommand('tellraw @a {"text":"'+esc(msg)+'","color":"'+color+'"}');
 }
 function dimKey(d, cx, cz) {
   return "crd_chunk_done_" + String(d).toLowerCase().replace(/[^a-z0-9_]/g, "_") + "_" + cx + "_" + cz;
 }
-function contains(arr, id){
-  for (var i=0;i<arr.length;i++) if (arr[i]===id) return true;
-  return false;
-}
+function contains(arr, id){ for (var i=0;i<arr.length;i++) if (arr[i]===id) return true; return false; }
+
 function allPadGround(level, x,y,z, gs){
   var dx, dz, id;
   for (dx=-1; dx<=1; dx++){
@@ -91,21 +179,84 @@ function tierArg(mode,n){
   return " tier "+N[n-1];
 }
 
+// name + nearest player helpers
+function getPlayerName(pl){
+  if (!pl) return "player";
+  if (pl.username) return String(pl.username);
+  if (pl.name) {
+    if (typeof pl.name.getString === "function") return String(pl.name.getString());
+    if (typeof pl.name.string === "string") return String(pl.name.string);
+    if (typeof pl.name === "string") return String(pl.name);
+  }
+  if (pl.displayName) {
+    if (typeof pl.displayName.getString === "function") return String(pl.displayName.getString());
+    if (typeof pl.displayName.string === "string") return String(pl.displayName.string);
+  }
+  return "player";
+}
+function nearestPlayer(server, dim, spot, maxR){
+  var players = server.players;
+  var best = null, bestD2 = 1e18, i, pl, dx, dy, dz, d2;
+  for (i=0;i<players.size();i++){
+    pl = players.get(i);
+    if (String(pl.level.dimension) !== String(dim)) continue;
+    dx = pl.x - spot.x; dy = pl.y - spot.y; dz = pl.z - spot.z;
+    d2 = dx*dx + dy*dy + dz*dz;
+    if (d2 < bestD2) { bestD2 = d2; best = pl; }
+  }
+  if (best && maxR && bestD2 > maxR*maxR) return null;
+  return best;
+}
+function niceDimName(dim){
+  var d = String(dim);
+  if (d === "minecraft:the_nether") return "The Nether";
+  if (d === "minecraft:overworld")   return "The Overworld";
+  if (d === "minecraft:the_end")     return "The End";
+  if (d === "aether:the_aether")     return "The Aether";
+  if (d === "deeperdarker:otherside") return "The Otherside";
+  if (d === "allthemodium:the_other") return "The Other";
+  var p = d.indexOf(":")>=0 ? d.split(":")[1] : d;
+  p = p.replace(/_/g, " ");
+  return p.replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+}
+function notifySpawn(server, pl, tier, spot, cfg){
+  var dim = pl && pl.level ? String(pl.level.dimension) : "minecraft:overworld";
+  var near = nearestPlayer(server, dim, spot, 256) || pl;
+  var name = getPlayerName(near);
+  var payload = {
+    "text": "",
+    "extra": [
+      {"text":"[Raid Den] ","color":"white"},
+      {"text": String(tier), "color":"light_purple"},
+      {"text":"-star raid den has spawned in ","color":"white"},
+      {"text": niceDimName(dim), "color":"yellow"},
+      {"text":", near ","color":"white"},
+      {"text": name, "color":"green"},
+      {"text":"!","color":"white"}
+    ]
+  };
+  server.runCommand('tellraw @a ' + JSON.stringify(payload));
+  var snd = cfg.playSound;
+  if (snd) {
+    server.runCommand('playsound '+String(snd)+' master @a '+Math.floor(spot.x)+' '+Math.floor(spot.y)+' '+Math.floor(spot.z)+' 0.6 1.0');
+  }
+}
+
 // Find a 3x3 pad on same Y of allowed ground with clear air above.
 function findPad(level, cfg, cx, cz){
   var tries = Number(cfg.triesPerChunk)>0 ? Number(cfg.triesPerChunk) : 160;
   var h = Number(cfg.clearHeight)>0 ? Number(cfg.clearHeight) : 12;
   var gs = cfg.groundBlocks || [];
-  var minY = 8, maxY = 126;
+  var minY = typeof cfg.yMin === "number" ? cfg.yMin : 8;
+  var maxY = typeof cfg.yMax === "number" ? cfg.yMax : 126;
 
   for (var t=0; t<tries; t++){
-    // keep 1-block margin so 3x3 fits inside chunk
     var x = (cx<<4) + 1 + Math.floor(Math.random()*14);
     var z = (cz<<4) + 1 + Math.floor(Math.random()*14);
 
     // scan downward to find first ground with air above
     var y, id, above;
-    var startY = maxY - Math.floor(Math.random()*32); // vary start a bit
+    var startY = maxY - Math.floor(Math.random()*32);
     if (startY<minY) startY=minY;
     for (y=startY; y>=minY; y--){
       id = String(level.getBlock(x, y, z).id);
@@ -114,17 +265,15 @@ function findPad(level, cfg, cx, cz){
     }
     if (y<minY) continue;
 
-    // require all 3x3 to be in ground set if configured
     if (cfg.requireFlat3x3 && !allPadGround(level, x, y, z, gs)) continue;
-
-    // require 3x3xH clear air above
     if (!padAirClear(level, x, y, z, h)) continue;
 
-    return { x:x, y:y+1, z:z }; // place on top center
+    return { x:x, y:y+1, z:z };
   }
   return null;
 }
 
+// --- main loop ---
 var tickCounter = 0;
 
 ServerEvents.tick(function (event){
@@ -147,13 +296,12 @@ ServerEvents.tick(function (event){
     var cz = (Math.floor(pl.z)) >> 4;
     var key = dimKey(dim, cx, cz);
 
-    // only mark done after a roll that we choose not to retry
     if (data[key]) continue;
 
     var roll = Math.random();
     if (roll >= Number(cfg.chancePerChunk)) {
       dbg(server,"dark_gray","[CRD] Chunk "+cx+","+cz+" rolled no-den ("+round3(roll)+")");
-      data[key] = true; // chance failed -> done
+      data[key] = true;
       continue;
     }
 
@@ -161,11 +309,10 @@ ServerEvents.tick(function (event){
     var spot = findPad(level, cfg, cx, cz);
     if (!spot) {
       dbg(server,"gold","[CRD] No valid 3x3 pad in chunk "+cx+","+cz);
-      if (!cfg.retryIfNoSpot) data[key] = true; // stop trying this chunk
+      if (!cfg.retryIfNoSpot) data[key] = true;
       continue;
     }
 
-    // clear space then place
     clearPadAir(level, spot.x, spot.y-1, spot.z, Number(cfg.clearHeight)>0?Number(cfg.clearHeight):12);
 
     var chosen = pickTier(cfg.weights);
@@ -179,6 +326,8 @@ ServerEvents.tick(function (event){
     dbg(server,"yellow","[CRD] "+cmd+" (chunk "+cx+","+cz+", tier "+chosen+")");
     server.runCommand(cmd);
 
-    data[key] = true; // finished
+    notifySpawn(server, pl, chosen, spot, cfg);
+
+    data[key] = true;
   }
 });
